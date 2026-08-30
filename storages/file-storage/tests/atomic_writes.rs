@@ -51,6 +51,33 @@ fn insert_data_leaves_no_leftover_temp_or_backup_files() {
 }
 
 #[test]
+fn append_data_leaves_no_leftover_temp_or_backup_files() {
+    let path = test_path("append-no-leftover");
+    let mut storage = FileStorage::new(&path).expect("FileStorage::new");
+    let schema = Schema::from_ddl("CREATE TABLE Foo (id INTEGER);").expect("parse schema");
+    storage.insert_schema(&schema).expect("insert schema");
+
+    storage
+        .append_data("Foo", vec![vec![Value::I64(1)], vec![Value::I64(2)]])
+        .expect("append data");
+
+    let rows = storage
+        .scan_data("Foo")
+        .expect("scan data")
+        .collect::<Result<Vec<_>, _>>()
+        .expect("rows readable");
+    assert_eq!(rows.len(), 2);
+
+    let leftovers = stray_files(&path, "Foo");
+    assert!(
+        leftovers.is_empty(),
+        "unexpected leftover files: {leftovers:?}"
+    );
+
+    let _ = fs::remove_dir_all(&path);
+}
+
+#[test]
 fn reinserting_existing_key_replaces_content_without_leftovers() {
     let path = test_path("insert-overwrite");
     let mut storage = FileStorage::new(&path).expect("FileStorage::new");
